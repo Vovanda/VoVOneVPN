@@ -1,0 +1,26 @@
+!.gitignore
+
+# Директории и файлы, связанные с сертификатами
+/certs/*
+
+# Логи и временные файлы
+*.log
+*.bak
+*.swp
+*.tmp
+
+# Конфигурации и файлы, содержащие секреты
+/nginx/auth/*
+/pritunl/data/*
+/3x-ui/data/*
+*secret*
+
+# Монтируемые файлы конфигурации
+/docker-compose.override.yml
+*.pem
+*.key
+*.crt
+
+# Включаем игнорирование всех файлов конфигурации по умолчанию для docker, кроме Dockerfile и docker-compose.yml
+/docker-compose.override.yml
+*.swp

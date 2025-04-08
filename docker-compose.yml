@@ -1,0 +1,65 @@
+version: '3.7'
+
+services:
+  nginx:
+    build: ./nginx
+    image: nginx
+    container_name: nginx
+    restart: unless-stopped
+    networks:
+      - vpn_net
+    ports:
+      - "80:80"
+      - "443:443/tcp"
+      - "443:443/udp"
+      - "5555:5555"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/vpn_stealth.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/auth:/etc/nginx/auth:ro
+      - ./certs/:/etc/letsencrypt/:ro
+    labels:
+      - "com.docker.compose.project=vovonevpn"
+
+  x-ui:
+    build: ./3x-ui
+    image: x-ui
+    container_name: x-ui
+    restart: unless-stopped
+    networks:
+      - vpn_net
+    expose:
+      - "2053/tcp"   # Xray
+      - "5580/tcp"    # Админ-панель
+      - "5555/tcp"    # Подписки
+    environment:
+      XUI_PORT: "5580"
+      XUI_SSL: "false"
+      XUI_SUB_PATH: "/sub"
+    volumes:
+      - ./certs/live/dashboard.avox.sawking.duckdns.org:/cert:ro
+    labels:
+      - "com.docker.compose.project=vovonevpn"
+
+  pritunl:
+    image: ghcr.io/jippi/docker-pritunl:latest
+    container_name: pritunl
+    restart: unless-stopped
+    networks:
+      - vpn_net
+    expose:
+      - "500/udp"
+      - "4500/udp"
+      - "9700/tcp"
+    volumes:
+      - ./pritunl/data:/var/lib/mongodb
+    environment:
+      TZ: "Europe/Moscow"
+    labels:
+      - "com.docker.compose.project=vovonevpn"
+
+networks:
+  vpn_net:
+    driver: bridge
+    labels:
+      - "com.docker.compose.project=vovonevpn"
