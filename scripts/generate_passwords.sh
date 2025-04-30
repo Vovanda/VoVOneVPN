@@ -8,24 +8,44 @@ generate_random_password() {
   tr -dc A-Za-z0-9 </dev/urandom | head -c 12
 }
 
+# Проверка наличия утилиты htpasswd
+check_htpasswd() {
+  if ! command -v htpasswd &> /dev/null; then
+    log "Утилита htpasswd не найдена! Установите её и повторите попытку." "ERROR"
+    exit 1
+  fi
+}
+
 # Генерация паролей и создание файлов .htpasswd
 generate_passwords() {
-  log "Генерация паролей началась." "Success"
+  log "Генерация паролей началась." "INFO"
+  check_htpasswd || exit 1
 
-  # Генерация случайных паролей
+  # Создаем директорию
+  mkdir -p ./nginx/auth || { 
+    log "Не удалось создать директорию ./nginx/auth" "ERROR"
+    exit 1
+  }
+
+  # Генерация пароля и создание .htpasswd
   scanner_password=$(generate_random_password)
-  gateway_password=$(generate_random_password)
+  htpasswd -bc ./nginx/auth/scanner.htpasswd vovOne "$scanner_password" || { 
+    log "Ошибка создания .htpasswd" "ERROR"
+    exit 1
+  } 
 
-  # Создание директории для auth, если её нет
-  mkdir -p ./nginx/auth
+  # Устанавливаем владельца файлов через UID/GID (101:101)
+  chown -R 101:101 ./nginx/auth || {
+    log "Ошибка смены владельца" "ERROR"
+    exit 1
+  }
+  chmod 644 ./nginx/auth/*.htpasswd || {
+    log "Ошибка смены прав" "ERROR"
+    exit 1
+  }
 
-  # Относительные пути для .htpasswd
-  htpasswd -bc ./nginx/auth/scanner.htpasswd vovOne "$scanner_password"
-  htpasswd -bc ./nginx/auth/gateway.htpasswd vovOne "$gateway_password"
-
-  log "Пароли сгенерированы: Scanner пароль - $scanner_password, Gateway пароль - $gateway_password" "Success"
-
-  log "Генерация паролей завершена." "Success"
+  log "Пароль для scanner domain: $scanner_password" "INFO"
+  log "Генерация паролей завершена." "SUCCESS"
 }
 
 generate_passwords

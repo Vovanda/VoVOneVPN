@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/duckdns_updater.conf"
 SECRETS_FILE="$SCRIPT_DIR/duckdns_updater.secrets.conf"
 DEFAULT_LOG_FILE="$SCRIPT_DIR/duckdns_updater.log"
+SCRIPT_NAME="$(basename "$0")"
 
 # Подключение логирования
 source "/vovOneVPN/scripts/log.sh"
@@ -106,12 +107,95 @@ update_certificates() {
     log "Обновление сертификатов завершено."
 }
 
+# Добавление задачи в cron для обновления сертификатов
+add_cron_job() {
+    # Рассчитываем интервал обновлений в минутах для cron
+    update_interval_minutes=$((DAYS_BETWEEN_UPDATES * 24 * 60))
+
+    # Проверяем, существует ли уже задача cron
+    existing_cron=$(crontab -l | grep -F "$SCRIPT_NAME")
+
+    if [ -z "$existing_cron" ]; then
+        # Если задачи нет, добавляем новую задачу в cron
+        log "Добавление задачи в cron для обновления сертификатов." "Info"
+        (crontab -l; echo "0 3 */$DAYS_BETWEEN_UPDATES * * $SCRIPT_DIR/$SCRIPT_NAME update_certificates >> $DEFAULT_LOG_FILE 2>&1") | crontab -
+        log "Задача cron добавлена успешно." "Success"
+    else
+        log "Задача cron уже существует." "Info"
+    fi
+}
+
+# Функция для вывода информации о путях к сертификатам
+info() {
+    echo -e "Доступные команды: \033[1;32mupdate_duckdns\033[0m, \033[1;32mupdate_certificates\033[0m, \033[1;32mfull_update\033[0m, \033[1;34minfo\033[0m"
+    
+    echo "Конфигурационные файлы:"
+    echo "Конфигурационный файл: $CONFIG_FILE"
+    echo "Файл с секретами: $SECRETS_FILE"
+    echo "Лог файл: $LOG_FILE"
+
+    echo "Текущие настройки:"
+    echo "Поддомены DuckDNS: $DUCKDNS_SUBDOMAINS"
+    echo "Интервал обновления (в днях): $DAYS_BETWEEN_UPDATES"
+    echo "Автообновление: $AUTO_UPDATE"
+
+    echo "Пути к файлам:"
+    echo "Путь к скрипту: $SCRIPT_DIR"
+    echo "Путь к файлу с логами: $DEFAULT_LOG_FILE"
+
+    echo "Пути к сертификатам:"
+    # Путь к сертификатам, если они существуют
+    for sub in "${SUBDOMAINS[@]}"; do
+        cert_path="/etc/letsencrypt/live/${sub}.duckdns.org/fullchain.pem"
+        privkey_path="/etc/letsencrypt/live/${sub}.duckdns.org/privkey.pem"
+        
+        if [ -f "$cert_path" ] && [ -f "$privkey_path" ]; then
+            echo "Сертификат для поддомена ${sub}.duckdns.org:"
+            echo "  Путь к сертификату: $cert_path"
+            echo "  Путь к приватному ключу: $privkey_path"
+        else
+            echo "Сертификат для поддомена ${sub}.duckdns.org не найден."
+        fi
+    done
+
+    log "Задачи в cron:" "Info"
+    # Печатаем задачи cron для текущего пользователя
+    crontab -l | grep "$SCRIPT_NAME"
+}
+
+# Функция для обновления записи DNS на DuckDNS
+update_duckdns() {
+    log "Начало обновления DNS для поддоменов DuckDNS."
+
+    # Для каждого поддомена обновляем DNS запись
+    for sub in "${SUBDOMAINS[@]}"; do
+        log "Обновление DNS записи для поддомена: ${sub}.duckdns.org"
+
+        # Выполняем запрос к API DuckDNS для обновления DNS записи
+        response=$(curl -s "https://www.duckdns.org/update?domains=${sub}&token=${DUCKDNS_TOKEN}&ip=")
+
+        # Проверка успешности обновления
+        if [[ "$response" == "OK" ]]; then
+            log "DNS запись для поддомена ${sub}.duckdns.org обновлена успешно." "Success"
+        else
+            log "Ошибка при обновлении DNS записи для поддомена ${sub}.duckdns.org." "Error"
+        fi
+
+        # Добавляем задержку, чтобы избежать частых запросов
+        log "Ожидание перед обработкой следующего поддомена..."
+        sleep 10
+    done
+
+    log "Обновление DNS завершено."
+}
+
 # Основной блок обработки команд
 case "$1" in
     update_duckdns) update_duckdns ;;
     update_certificates) update_certificates ;;
-    full_update) update_duckdns && sleep 5 && update_certificates && reload_nginx ;;
+    full_update) update_duckdns && sleep 5 && update_certificates && add_cron_job;;
     info) info ;;
+    add_cron) add_cron_job ;;  # Добавлен новый режим
     *)
         info
         ;;

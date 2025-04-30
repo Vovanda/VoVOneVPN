@@ -8,7 +8,7 @@ init_folders() {
   log "Создаем необходимые директории и устанавливаем права..."
 
   # Ассоциативный массив: [папка]="права"
-  declare -A dirs_to_create=(
+  declare -A dirs_to_create=( 
     ["./nginx/auth"]="750"
     ["./certs"]="755"
     ["./nginx/data"]="755"
@@ -32,16 +32,32 @@ init_folders() {
     fi
 
     # Установка прав
-    chmod ${dirs_to_create[$dir]} "$dir" && 
-      log "Права ${dirs_to_create[$dir]} для $dir установлены." ||
-      { log "Ошибка установки прав для $dir" "WARNING"; }
+    if chmod ${dirs_to_create[$dir]} "$dir"; then
+      log "Права ${dirs_to_create[$dir]} для $dir установлены."
+    else
+      log "Ошибка установки прав для $dir" "WARNING"
+      return 1
+    fi
   done
 
   # Особые права для файлов (если файлы уже существуют)
-  chmod 644 ./3x-ui/data/config/config.json 2>/dev/null &&   # Конфиг
-    log "Права для конфига установлены."
-  chmod 666 ./3x-ui/data/db/x-ui.db 2>/dev/null &&          # SQLite БД
-    log "Права для БД установлены."
+  if [ -f "./3x-ui/data/config/config.json" ]; then
+    if chmod 644 ./3x-ui/data/config/config.json; then
+      log "Права для конфига установлены."
+    else
+      log "Ошибка установки прав для конфига." "WARNING"
+      return 1
+    fi
+  fi
+
+  if [ -f "./3x-ui/data/db/x-ui.db" ]; then
+    if chmod 666 ./3x-ui/data/db/x-ui.db; then
+      log "Права для БД установлены."
+    else
+      log "Ошибка установки прав для БД." "WARNING"
+      return 1
+    fi
+  fi
 
   log "Инициализация файловой структуры завершена." "SUCCESS"
 }

@@ -9,10 +9,13 @@
 *.swp
 *.tmp
 
+
 # Конфигурации и файлы, содержащие секреты
+*.env
 /nginx/auth/*
 /pritunl/data/*
 /3x-ui/data/*
+/3x-ui/backups/*
 *secret*
 
 # Монтируемые файлы конфигурации
